@@ -96,6 +96,10 @@ namespace CodersLab.Windows.Controls
         /// </summary>
         MultiSelect,
         /// <summary>
+        /// Automatically selects all subtree, deselect parent if child deselected.
+        /// </summary>
+        MultiSelectSubtree,
+        /// <summary>
         /// Multiple nodes that belong to the same root branch can be selected at the same time.
         /// </summary>
         MultiSelectSameRootBranch,
@@ -405,6 +409,77 @@ namespace CodersLab.Windows.Controls
         }
 
         /// <summary>
+        /// Unselects all ancestorss nodes.
+        /// </summary>
+        /// <param name="node">Node.</param>
+        /// <param name="tva">Specifies the action that caused the selection change.</param>
+        private void UnselectAllAncestorsNodes(TreeNode node, TreeViewAction tva)
+        {
+            // First, build list of nodes that need to be unselected
+            List<TreeNode> arrNodesToDeselect = new List<TreeNode>();
+            node = node.Parent;
+            while (node != null)
+            {
+                arrNodesToDeselect.Add(node);
+                node = node.Parent;
+            }
+
+            // Do the actual unselect
+            foreach (var tnToDeselect in arrNodesToDeselect)
+                SelectNode(tnToDeselect, false, tva);
+        }
+
+        /// <summary>
+        /// Unselects all subtree nodes.
+        /// </summary>
+        /// <param name="node">Node.</param>
+        /// <param name="tva">Specifies the action that caused the selection change.</param>
+        private void UnselectAllSubtreeNodes(TreeNode node, TreeViewAction tva)
+        {
+            // First, build list of nodes that need to be unselected
+            List<TreeNode> arrNodesToDeselect = FindAllSubtreeNodes(node);
+
+            // Do the actual unselect
+            foreach (var tnToDeselect in arrNodesToDeselect)
+            {
+                SelectNode(tnToDeselect, false, tva);
+            }
+        }
+
+        /// <summary>
+        /// Select all subtree nodes.
+        /// </summary>
+        /// <param name="node">Node.</param>
+        /// <param name="tva">Specifies the action that caused the selection change.</param>
+        private void SelectAllSubtreeNodes(TreeNode node, TreeViewAction tva)
+        {
+            // First, build list of nodes that need to be unselected
+            List<TreeNode> arrNodesToSelect = FindAllSubtreeNodes(node);
+
+            // Do the actual unselect
+            foreach (var tnToSelect in arrNodesToSelect)
+            {
+                SelectNode(tnToSelect, true, tva);
+            }
+        }
+
+        /// <summary>
+        /// Find all subtree in prefix order.
+        /// </summary>
+        /// <param name="node">Node.</param>
+        /// <returns>List of nodes in subtree of node.</returns>
+        private List<TreeNode> FindAllSubtreeNodes(TreeNode node)
+        {
+            List<TreeNode> res = new List<TreeNode>();
+            res.Add(node);
+            foreach (var n in node.Nodes.OfType<TreeNode>())
+            {
+                res.AddRange(FindAllSubtreeNodes(n));
+            }
+            return res;
+        }
+
+        /// <summary>
         /// Unselects all selected nodes that don't belong to the specified level.
         /// </summary>
         /// <param name="level">Node level.</param>
@@ -614,6 +689,8 @@ namespace CodersLab.Windows.Controls
                 }
             }
 
+
+
             return blnSelected;
         }
 
@@ -640,17 +717,17 @@ namespace CodersLab.Windows.Controls
             }
 
             // Select each node in range
-            SelectNode(firstNode, true, tva);
+            SelectNodesOrSubtree(firstNode, true, tva);
             TreeNode tnTemp = firstNode;
             while (tnTemp != lastNode)
             {
                 tnTemp = tnTemp.NextVisibleNode;
                 if (tnTemp != null)
                 {
-                    SelectNode(tnTemp, true, tva);
+                    SelectNodesOrSubtree(tnTemp, true, tva);
                 }
             }
-            SelectNode(lastNode, true, tva);
+            SelectNodesOrSubtree(lastNode, true, tva);
         }
 
         /// <summary>
@@ -682,7 +759,7 @@ namespace CodersLab.Windows.Controls
                 tnTemp = tnTemp.PrevVisibleNode;
                 if (tnTemp != null)
                 {
-                    SelectNode(tnTemp, false, tva);
+                    SelectNodesOrSubtree(tnTemp, false, tva);
                 }
             }
 
@@ -692,7 +769,7 @@ namespace CodersLab.Windows.Controls
                 tnTemp = tnTemp.NextVisibleNode;
                 if (tnTemp != null)
                 {
-                    SelectNode(tnTemp, false, tva);
+                    SelectNodesOrSubtree(tnTemp, false, tva);
                 }
             }
         }
@@ -718,7 +795,7 @@ namespace CodersLab.Windows.Controls
             {
                 if(IsNodeSelected(node) == false)
                 {
-                    SelectNode(node, true, TreeViewAction.Unknown);
+                    SelectNodesOrSubtree(node, true, TreeViewAction.Unknown);
                 }
             }
             OnSelectionsChanged();
@@ -1097,6 +1174,22 @@ namespace CodersLab.Windows.Controls
 
         #region ProcessNodeRange
 
+        private void SelectNodesOrSubtree(TreeNode node, bool select, TreeViewAction tva)
+        {
+            if (select)
+            {
+                if (SelectionMode == TreeViewSelectionMode.MultiSelectSubtree)
+                    SelectAllSubtreeNodes(node, TreeViewAction.Collapse);
+                else
+                    SelectNode(node, true, TreeViewAction.Collapse);
+            }
+            else
+            {
+                UnselectAllAncestorsNodes(node, TreeViewAction.Unknown);
+                UnselectAllSubtreeNodes(node, TreeViewAction.Unknown);
+            }
+        }
+
         /// <summary>
         /// Processes a node range.
         /// </summary>
@@ -1138,8 +1231,7 @@ namespace CodersLab.Windows.Controls
 
 
                         UnselectAllNodesExceptNode(endNode, tva);
-                        SelectNode(endNode, true, tva);
-
+                        SelectNodesOrSubtree(endNode, true, tva);
 
                         if ((blnNodeWasSelected) && (LabelEdit) && (allowStartEdit) && (!blnWasDoubleClick) && (intNumberOfSelectedNodes <= 1))
                         {
@@ -1184,11 +1276,11 @@ namespace CodersLab.Windows.Controls
                                 break;
                         }
 
-                        SelectNode(endNode, true, tva);
+                        SelectNodesOrSubtree(endNode, true, tva);
                     }
                     else
                     {
-                        SelectNode(endNode, false, tva);
+                        SelectNodesOrSubtree(endNode, false, tva);
                     }
                 }
                 else if (((keys & Keys.Control) == 0) && ((keys & Keys.Shift) != 0))
@@ -1199,7 +1291,7 @@ namespace CodersLab.Windows.Controls
                     if (startNode == null)
                     {
                         UnselectAllNodesExceptNode(endNode, tva);
-                        SelectNode(endNode, true, tva);
+                        SelectNodesOrSubtree(endNode, true, tva);
                     }
                     else
                     {
@@ -1289,8 +1381,9 @@ namespace CodersLab.Windows.Controls
                                 break;
 
                             case TreeViewSelectionMode.MultiSelect:
-                                SelectNodesInsideRange(tnSelectionMirrorPoint, endNode, tva);
+                            case TreeViewSelectionMode.MultiSelectSubtree:
                                 UnselectNodesOutsideRange(tnSelectionMirrorPoint, endNode, tva);
+                                SelectNodesInsideRange(tnSelectionMirrorPoint, endNode, tva);
                                 break;
 
                             case TreeViewSelectionMode.MultiSelectSameParent:
@@ -1399,6 +1492,7 @@ namespace CodersLab.Windows.Controls
                             break;
 
                         case TreeViewSelectionMode.MultiSelect:
+                        case TreeViewSelectionMode.MultiSelectSubtree:
                             tnTemp = startNode;
                             // Check each visible node from startNode to endNode and select it if needed
                             while ((tnTemp != null) && (tnTemp != endNode))
@@ -1409,7 +1503,7 @@ namespace CodersLab.Windows.Controls
                                     tnTemp = tnTemp.NextVisibleNode;
                                 if (tnTemp != null)
                                 {
-                                    SelectNode(tnTemp, true, tva);
+                                    SelectNodesOrSubtree(tnTemp, true, tva);
                                 }
                             }
                             break;
@@ -1444,7 +1538,7 @@ namespace CodersLab.Windows.Controls
                 if (!IsNodeSelected(endNode))
                 {
                     UnselectAllNodes(tva);
-                    SelectNode(endNode, true, tva);
+                    SelectNodesOrSubtree(endNode, true, tva);
                 }
             }
             OnSelectionsChanged();
@@ -1619,7 +1713,7 @@ namespace CodersLab.Windows.Controls
 
             if (blnChildSelected)
             {
-                SelectNode(e.Node, true, TreeViewAction.Collapse);
+                SelectNodesOrSubtree(e.Node, true, TreeViewAction.Collapse);
             }
 
             OnSelectionsChanged();
